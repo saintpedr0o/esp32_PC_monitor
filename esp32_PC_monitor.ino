@@ -35,8 +35,6 @@ String getValue(String data, String key) {
 }
 
 void setup() {
-  Serial.begin(115200);
-  
   tft.initR(INITR_BLACKTAB); 
   tft.setRotation(1); 
   tft.fillScreen(ST77XX_BLACK);
@@ -53,21 +51,15 @@ void setup() {
     tft.setTextColor(ST77XX_BLACK);
     tft.setTextSize(2);
     tft.println("BT ERROR!");
-    
-    tft.setTextSize(1);
-    tft.setCursor(10, 80);
-    tft.println("Init Failed");
-    
-    Serial.println("BT Init Failed"); // delete 
     while(1);
   }
 
   drawBluetoothWaitScreen();
 
   esp_bt_cod_t cod;
-  cod.major = 0b00000;
-  cod.minor = 0b000000;    
-  cod.service = 0b00000000000; 
+  cod.major = 0b00101;
+  cod.minor = 0b000000;
+  cod.service = 0b00000100000;
   esp_bt_gap_set_cod(cod, ESP_BT_SET_COD_ALL);
 }
 
@@ -76,20 +68,26 @@ void loop() {
   while (SerialBT.available()) {
     char c = SerialBT.read();
     if (c == '\n') {
-      stats.cpuPct = getValue(inputBuffer, "CP:").toFloat();
-      stats.cpuTemp = getValue(inputBuffer, "CT:").toFloat();
-      stats.cpuFreq = getValue(inputBuffer, "CF:").toInt();
-      stats.ramPct = getValue(inputBuffer, "RM:").toFloat();
-      stats.ramGb = getValue(inputBuffer, "RG:").toFloat();
-      stats.diskRead = getValue(inputBuffer, "DR:").toInt();
-      stats.diskWrite = getValue(inputBuffer, "DW:").toInt();
-      stats.netDown = getValue(inputBuffer, "ND:").toInt();
-      stats.uptime = getValue(inputBuffer, "UP:").toInt();
+      // handshake
+      if (inputBuffer == "IDENTIFY") {
+        SerialBT.println("ESP_MONITOR_READY"); 
+      } 
+      else if (inputBuffer.length() > 0) {
+        stats.cpuPct = getValue(inputBuffer, "CP:").toFloat();
+        stats.cpuTemp = getValue(inputBuffer, "CT:").toFloat();
+        stats.cpuFreq = getValue(inputBuffer, "CF:").toInt();
+        stats.ramPct = getValue(inputBuffer, "RM:").toFloat();
+        stats.ramGb = getValue(inputBuffer, "RG:").toFloat();
+        stats.diskRead = getValue(inputBuffer, "DR:").toInt();
+        stats.diskWrite = getValue(inputBuffer, "DW:").toInt();
+        stats.netDown = getValue(inputBuffer, "ND:").toInt();
+        stats.uptime = getValue(inputBuffer, "UP:").toInt();
+      }
       inputBuffer = "";
     } else {
       inputBuffer += c;
     }
-  }
+}
 
   // main view logic
   if (millis() - displayTimer > 5000) {

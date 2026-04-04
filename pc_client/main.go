@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"runtime"
 	"strings"
 	"time"
 
@@ -10,13 +9,14 @@ import (
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
-
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/shirou/gopsutil/v3/host"
 	"github.com/shirou/gopsutil/v3/mem"
 	"github.com/shirou/gopsutil/v3/net"
 	"github.com/tarm/serial"
+
+    "pc_monitor/internal/platform"
 )
 
 type uiData struct {
@@ -25,44 +25,42 @@ type uiData struct {
 	log    string
 }
 
-func main() {
-	myApp := app.New()
-	window := myApp.NewWindow("ESP32 PC Monitor")
+const appName = "ESP32BTMonitor"
 
-	statusLabel := widget.NewLabel("Status: Search...")
-	statsLabel := widget.NewLabel("Stats: 0%")
+func main() {
+	myApp := app.NewWithID("ESP32 Monitor")
+	window := myApp.NewWindow("ESP32 Bluetooth Monitor")
+
+	statusLabel := widget.NewLabel("")
+	statsLabel := widget.NewLabel("")
 	logView := widget.NewMultiLineEntry()
 	logView.Disable()
 
-	uiChan := make(chan uiData, 10)
+	autostartCheck := widget.NewCheck("Autostart", func(c bool) { platform.ToggleAutostart(c, appName) })
+	autostartCheck.Checked = platform.CheckAutostartStatus(appName)
 
-	content := container.NewVBox(
+	platform.SetupSystemTray(myApp, window, appName)
+
+	uiChan := make(chan uiData, 5)
+
+	window.SetContent(container.NewVBox(
 		statusLabel,
 		widget.NewSeparator(),
 		statsLabel,
-		widget.NewLabel("Log:"),
-		container.NewStack(logView),
-	)
-
-	window.SetContent(content)
-	window.Resize(fyne.NewSize(500, 450))
+		container.NewGridWithRows(1, logView),
+		autostartCheck,
+	))
+	window.Resize(fyne.NewSize(600, 200))
+	window.SetCloseIntercept(window.Hide)
 
 	go runMonitoringLoop(uiChan)
 
 	go func() {
-		for data := range uiChan {
-			d := data 
-			
+		for d := range uiChan {
 			fyne.Do(func() {
-				if d.status != "" {
-					statusLabel.SetText(d.status)
-				}
-				if d.stats != "" {
-					statsLabel.SetText(d.stats)
-				}
-				if d.log != "" {
-					logView.SetText(d.log + "\n" + logView.Text)
-				}
+				statusLabel.SetText(d.status)
+				statsLabel.SetText(d.stats)
+				logView.SetText(d.log)
 			})
 		}
 	}()
@@ -71,46 +69,53 @@ func main() {
 }
 
 func runMonitoringLoop(uiChan chan uiData) {
+	disconnectedState := uiData{
+		status: "Status: Searching...",
+		stats:  "CPU: ----% | RAM: ----% | Port: None",
+		log:    "Disconnected",
+	}
+
 	for {
 		port, activePort := findDevice()
 		if port == nil {
-			uiChan <- uiData{status: "Status: Search device..."}
-			time.Sleep(1 * time.Second)
+			uiChan <- disconnectedState
+			time.Sleep(2 * time.Second)
 			continue
 		}
-
-		uiChan <- uiData{status: "Connected: " + activePort, log: "[OK] Connected"}
 
 		for {
 			data, statsStr, err := collectStats(activePort)
 			if err != nil {
-				uiChan <- uiData{log: "[!] Error: " + err.Error()}
+				uiChan <- disconnectedState
 				break
 			}
 
-			_, err = port.Write([]byte(data))
-			if err != nil {
+			if _, err := port.Write([]byte(data)); err != nil {
 				break
 			}
-			
-			uiChan <- uiData{stats: statsStr, log: "Send: " + strings.TrimSpace(data)}
-			time.Sleep(1 * time.Second)
+
+			uiChan <- uiData{
+				status: "Connected: " + activePort,
+				stats:  statsStr,
+				log:    "Sent: " + strings.TrimSpace(data),
+			}
+			time.Sleep(time.Second)
 		}
 		port.Close()
-		uiChan <- uiData{status: "Status: Reconnecting..."}
-		time.Sleep(2 * time.Second)
 	}
 }
 
 func collectStats(activePort string) (string, string, error) {
 	cPctAll, _ := cpu.Percent(0, false)
-	cInfo, _ := cpu.Info()
 	m, _ := mem.VirtualMemory()
+	cInfo, _ := cpu.Info()
 	t, _ := host.SensorsTemperatures()
 	uptime, _ := host.Uptime()
 
 	var cpuTemp float64
-	if len(t) > 0 { cpuTemp = t[0].Temperature }
+	if len(t) > 0 {
+		cpuTemp = t[0].Temperature
+	}
 
 	d1, _ := disk.IOCounters()
 	n1, _ := net.IOCounters(false)
@@ -142,12 +147,7 @@ func collectStats(activePort string) (string, string, error) {
 }
 
 func findDevice() (*serial.Port, string) {
-	var ports []string
-	if runtime.GOOS == "windows" {
-		for i := 1; i <= 20; i++ { ports = append(ports, fmt.Sprintf("COM%d", i)) }
-	} else {
-		for i := 0; i <= 9; i++ { ports = append(ports, fmt.Sprintf("/dev/rfcomm%d", i)) }
-	}
+	ports := platform.GetSerialPorts() 
 
 	for _, pName := range ports {
 		config := &serial.Config{Name: pName, Baud: 115200, ReadTimeout: time.Second * 1}

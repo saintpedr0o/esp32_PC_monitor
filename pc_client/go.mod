@@ -1,11 +1,12 @@
 module pc_monitor
 
-go 1.22.2
+go 1.25.0
 
 require (
 	fyne.io/fyne/v2 v2.7.3
 	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/tarm/serial v0.0.0-20180830185346-98f6abe2eb07
+	golang.org/x/sys v0.42.0
 )
 
 require (
@@ -45,7 +46,6 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	golang.org/x/image v0.24.0 // indirect
 	golang.org/x/net v0.35.0 // indirect
-	golang.org/x/sys v0.30.0 // indirect
 	golang.org/x/text v0.22.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

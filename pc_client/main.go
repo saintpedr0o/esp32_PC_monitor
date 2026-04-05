@@ -9,6 +9,7 @@ import (
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
+    "fyne.io/fyne/v2/theme"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/shirou/gopsutil/v3/host"
@@ -29,10 +30,15 @@ const appName = "ESP32BTMonitor"
 
 func main() {
 	myApp := app.NewWithID("ESP32 Monitor")
+    myApp.Settings().SetTheme(theme.DarkTheme())
 	window := myApp.NewWindow("ESP32 Bluetooth Monitor")
 
-	statusLabel := widget.NewLabel("")
-	statsLabel := widget.NewLabel("")
+	statusLabel := widget.NewLabel("Status: 🔍 Searching...")
+    statusLabel.Alignment = fyne.TextAlignCenter
+	statsLabel := widget.NewLabel("CPU: ----% | RAM: ----% | Port: None")
+    statsLabel.Alignment = fyne.TextAlignCenter
+    logLabel := widget.NewLabel("Log:")
+
 	logView := widget.NewMultiLineEntry()
 	logView.Disable()
 
@@ -47,6 +53,8 @@ func main() {
 		statusLabel,
 		widget.NewSeparator(),
 		statsLabel,
+        widget.NewSeparator(),
+        logLabel,
 		container.NewGridWithRows(1, logView),
 		autostartCheck,
 	))
@@ -70,7 +78,7 @@ func main() {
 
 func runMonitoringLoop(uiChan chan uiData) {
 	disconnectedState := uiData{
-		status: "Status: Searching...",
+		status: "Status: 🔍 Searching...",
 		stats:  "CPU: ----% | RAM: ----% | Port: None",
 		log:    "Disconnected",
 	}
@@ -95,7 +103,7 @@ func runMonitoringLoop(uiChan chan uiData) {
 			}
 
 			uiChan <- uiData{
-				status: "Connected: " + activePort,
+				status: "Status: ✅ Connected",
 				stats:  statsStr,
 				log:    "Sent: " + strings.TrimSpace(data),
 			}

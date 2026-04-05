@@ -10,11 +10,19 @@ import (
 
 func SetupSystemTray(a fyne.App, w fyne.Window, name string) {
 	if desk, ok := a.(desktop.App); ok {
-		itemShow := fyne.NewMenuItem("Show", func() {
+        itemShow := fyne.NewMenuItem("Show", func() {
 			w.Show()
 		})
 
-		menu := fyne.NewMenu(name, itemShow)
+		itemQuit := fyne.NewMenuItem("Quit", func() {
+			a.Quit()
+		})
+
+		menu := fyne.NewMenu(name, 
+			itemShow, 
+			fyne.NewMenuItemSeparator(), 
+			itemQuit,
+		)
 
 		desk.SetSystemTrayMenu(menu)
 		desk.SetSystemTrayIcon(theme.SettingsIcon())

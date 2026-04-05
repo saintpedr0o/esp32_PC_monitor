@@ -17,7 +17,7 @@ func SetupSystemTray(a fyne.App, w fyne.Window, name string) {
 		itemQuit := fyne.NewMenuItem("Quit", func() {
 			a.Quit()
 		})
-
+        itemQuit.IsQuit = true
 		menu := fyne.NewMenu(name, 
 			itemShow, 
 			fyne.NewMenuItemSeparator(), 

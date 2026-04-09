@@ -1,6 +1,7 @@
 package main
 
 import (
+    _ "embed"
 	"fmt"
 	"strings"
 	"time"
@@ -20,6 +21,9 @@ import (
     "pc_monitor/internal/platform"
 )
 
+//go:embed icon.png
+var iconBytes []byte
+
 type uiData struct {
 	status string
 	stats  string
@@ -29,7 +33,7 @@ type uiData struct {
 const appName = "ESP32BTMonitor"
 
 func main() {
-	myApp := app.NewWithID("ESP32 Monitor")
+	myApp := app.NewWithID("ESP32 BT Monitor")
     myApp.Settings().SetTheme(theme.DarkTheme())
 	window := myApp.NewWindow("ESP32 Bluetooth Monitor")
 
@@ -45,7 +49,8 @@ func main() {
 	autostartCheck := widget.NewCheck("Autostart", func(c bool) { platform.ToggleAutostart(c, appName) })
 	autostartCheck.Checked = platform.CheckAutostartStatus(appName)
 
-	platform.SetupSystemTray(myApp, window, appName)
+    iconRes := fyne.NewStaticResource("icon.png", iconBytes)
+	platform.SetupSystemTray(myApp, window, appName, iconRes)
 
 	uiChan := make(chan uiData, 5)
 

@@ -1,0 +1,9 @@
+build/ export-ignore
+build_windows.sh export-ignore
+build_linux.sh export-ignore
+nfpm.yaml export-ignore
+.gitattributes export-ignore
+.gitignore export-ignore
+esp32btmonitor.desktop export-ignore
+TFT_1.77_inch_160x128.fzpz export-ignore
+icon.ico export-ignore

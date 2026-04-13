@@ -1,13 +1,11 @@
 #include "BluetoothSerial.h"
-#include <Adafruit_GFX.h>
 #include <Adafruit_ST7735.h>
-#include <SPI.h>
 
-#define TFT_MOSI  13 // sda
+#define TFT_MOSI  13
 #define TFT_SCLK  15
-#define TFT_CS    4
-#define TFT_DC    2
-#define TFT_RST   5
+#define TFT_CS    27
+#define TFT_DC    33
+#define TFT_RST   32
 
 // Adafruit_ST7735 tft = Adafruit_ST7735(CS_PIN, DC_PIN, RST_PIN);
 Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, TFT_RST);
@@ -24,6 +22,7 @@ struct SystemStats {
 String inputBuffer = "";
 unsigned long displayTimer = 0;
 int page = 0;
+bool btAvailable = true;
 
 String getValue(String data, String key) {
   int keyPos = data.indexOf(key);
@@ -51,19 +50,16 @@ void setup() {
     tft.setTextColor(ST77XX_BLACK);
     tft.setTextSize(2);
     tft.println("BT ERROR!");
-    while(1);
+    btAvailable = false;
+    return;
   }
 
   drawBluetoothWaitScreen();
-
-  esp_bt_cod_t cod;
-  cod.major = 0b00101;
-  cod.minor = 0b000000;
-  cod.service = 0b00000100000;
-  esp_bt_gap_set_cod(cod, ESP_BT_SET_COD_ALL);
 }
 
 void loop() {
+  if (!btAvailable) {return;}
+
   // read Bluetooth data
   while (SerialBT.available()) {
     char c = SerialBT.read();

@@ -14,6 +14,16 @@ To compile the firmware, you need to install the following libraries via the **A
 * **WiFiUDP**: Built-in library for handling UDP data stream.
 * **Adafruit ST7735**: Hardware-specific library for the 1.77" TFT display.
 
+### 📡 External Wi-Fi Adapter
+
+For optimal performance and network isolation, it is recommended to use a dedicated external network interface.
+
+![Adapter example](./docs/adapter-usb-wifi-802.11n.png)
+
+* **Chipset Support**: 802.11n compatible adapters are ideal for stable UDP streaming.
+* **Network Isolation**: By using this external adapter, the PC client can communicate directly with the ESP32 Access Point while your primary built-in Wi-Fi remains connected to the internet.
+* **Binding**: The client application identifies this specific device via the `targetAdapterMac` constant defined in the source code(see [Configuration & Installation](#-configuration--installation)).
+
 ### Wiring Diagram
 
 Below is the connection scheme for the ESP32 and the TFT display.

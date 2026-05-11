@@ -1,5 +1,11 @@
 # esp32_PC_monitor
 
+> [!IMPORTANT]
+> **Looking for the Wi-Fi version?** The Bluetooth implementation is now considered legacy. For the most stable experience, lower latency, and advanced features, please check out the **[Wi-Fi Version branch](https://github.com/saintpedr0o/esp32_PC_monitor/tree/wifi-version)**. This is the most current and actively maintained realization of the project.
+
+> [!IMPORTANT]
+> Alternatively, you can head straight to the **[Releases](https://github.com/saintpedr0o/esp32_PC_monitor/releases)** page to download the latest Wi-Fi binaries for Windows and Linux.
+
 **esp32_PC_monitor** is a complete solution consisting of an ESP32-based device and a PC client to monitor your computer's real-time statistics via Bluetooth.
 
 

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=ESP32Monitor
+Comment=ESP32 PC monitor
+Exec=/usr/bin/esp32monitor
+Icon=esp32monitor
+Type=Application
+Categories=Utility;
+Terminal=false
+Name[en_EN]=esp32monitor.desktop
+

@@ -1,5 +1,3 @@
-//go:build windows
-
 package platform
 
 import (
@@ -16,13 +14,14 @@ func SetupSystemTray(a fyne.App, w fyne.Window, name string, icon fyne.Resource)
 		itemQuit := fyne.NewMenuItem("Quit", func() {
 			a.Quit()
 		})
-        itemQuit.IsQuit = true
+		itemQuit.IsQuit = true
+		
 		menu := fyne.NewMenu(name, 
 			itemShow, 
 			fyne.NewMenuItemSeparator(), 
 			itemQuit,
 		)
-		
+
 		desk.SetSystemTrayMenu(menu)
 		desk.SetSystemTrayIcon(icon)
 	}

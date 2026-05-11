@@ -1,9 +1,0 @@
-[Desktop Entry]
-Name=ESP32BTMonitor
-Comment=ESP32 BlueTooth PC monitor
-Exec=/usr/bin/esp32btmonitor
-Icon=esp32btmonitor
-Type=Application
-Categories=Utility;
-Terminal=false
-

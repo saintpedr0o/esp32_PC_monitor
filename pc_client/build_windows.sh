@@ -8,8 +8,8 @@ CGO_ENABLED=1 \
 GOOS=windows \
 GOARCH=amd64 \
 CC=x86_64-w64-mingw32-gcc \
-go build -ldflags="-s -w -H=windowsgui" -o build/ESP32BTMonitor.exe .
+go build -ldflags="-s -w -H=windowsgui" -o build/ESP32Monitor.exe .
 
 rm -f icon_windows.syso
 
-echo "Windows build done: build/ESP32BTMonitor.exe"
+echo "Windows build done: build/ESP32Monitor.exe"

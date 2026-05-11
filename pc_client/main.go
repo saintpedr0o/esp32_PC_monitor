@@ -1,24 +1,24 @@
 package main
 
 import (
-    _ "embed"
+	_ "embed"
 	"fmt"
+	"net"
 	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
-    "fyne.io/fyne/v2/theme"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/shirou/gopsutil/v3/host"
 	"github.com/shirou/gopsutil/v3/mem"
-	"github.com/shirou/gopsutil/v3/net"
-	"github.com/tarm/serial"
+	netutil "github.com/shirou/gopsutil/v3/net"
 
-    "pc_monitor/internal/platform"
+	"pc_monitor/internal/platform"
 )
 
 //go:embed icon.png
@@ -30,26 +30,32 @@ type uiData struct {
 	log    string
 }
 
-const appName = "ESP32BTMonitor"
+const (
+	appName          = "ESP32Monitor"
+	targetAdapterMac = "88:88:88:88:88:88"
+	targetAddr       = "192.168.4.1:1234"
+)
 
 func main() {
-	myApp := app.NewWithID("ESP32 BT Monitor")
-    myApp.Settings().SetTheme(theme.DarkTheme())
-	window := myApp.NewWindow("ESP32 Bluetooth Monitor")
+	iconRes := fyne.NewStaticResource("icon.png", iconBytes)
+	myApp := app.NewWithID("ESP32 Monitor")
+    myApp.SetIcon(iconRes)
+	myApp.Settings().SetTheme(theme.DarkTheme())
+	window := myApp.NewWindow("ESP32 Monitor")
 
 	statusLabel := widget.NewLabel("Status: 🔍 Searching...")
-    statusLabel.Alignment = fyne.TextAlignCenter
-	statsLabel := widget.NewLabel("CPU: ----% | RAM: ----% | Port: None")
-    statsLabel.Alignment = fyne.TextAlignCenter
-    logLabel := widget.NewLabel("Log:")
+	statusLabel.Alignment = fyne.TextAlignCenter
 
+	statsLabel := widget.NewLabel("CPU: ----% | RAM: ----% | Adapter: ----")
+	statsLabel.Alignment = fyne.TextAlignCenter
+
+	logLabel := widget.NewLabel("Last Sent Data:")
 	logView := widget.NewMultiLineEntry()
 	logView.Disable()
 
 	autostartCheck := widget.NewCheck("Autostart", func(c bool) { platform.ToggleAutostart(c, appName) })
 	autostartCheck.Checked = platform.CheckAutostartStatus(appName)
 
-    iconRes := fyne.NewStaticResource("icon.png", iconBytes)
 	platform.SetupSystemTray(myApp, window, appName, iconRes)
 
 	uiChan := make(chan uiData, 5)
@@ -58,83 +64,102 @@ func main() {
 		statusLabel,
 		widget.NewSeparator(),
 		statsLabel,
-        widget.NewSeparator(),
-        logLabel,
+		widget.NewSeparator(),
+		logLabel,
 		container.NewGridWithRows(1, logView),
 		autostartCheck,
 	))
-	window.Resize(fyne.NewSize(600, 200))
+	window.Resize(fyne.NewSize(520, 200))
 	window.SetCloseIntercept(window.Hide)
-
-	go runMonitoringLoop(uiChan)
 
 	go func() {
 		for d := range uiChan {
 			fyne.Do(func() {
-				statusLabel.SetText(d.status)
-				statsLabel.SetText(d.stats)
-				logView.SetText(d.log)
+				if d.status != "" { statusLabel.SetText(d.status) }
+				if d.stats != "" { statsLabel.SetText(d.stats) }
+				if d.log != "" { logView.SetText(d.log) }
 			})
+		}
+	}()
+
+	go func() {
+		var conn *net.UDPConn
+		var err error
+
+		for {
+			localIP, adapterName := getAdapterInfoByMAC(targetAdapterMac)
+			if localIP == "" {
+				uiChan <- uiData{status: "Error: Adapter [" + targetAdapterMac + "] not found"}
+				time.Sleep(3 * time.Second)
+				continue
+			}
+
+			lAddr, _ := net.ResolveUDPAddr("udp", localIP+":0")
+			rAddr, _ := net.ResolveUDPAddr("udp", targetAddr)
+
+			conn, err = net.DialUDP("udp", lAddr, rAddr)
+			if err != nil {
+				uiChan <- uiData{status: "Dial Error: " + err.Error()}
+				time.Sleep(2 * time.Second)
+				continue
+			}
+
+			uiChan <- uiData{status: "Status: ✅ Connected " + localIP}
+
+			for {
+				statsRaw, cpuP, ramP := collectAllStats()
+				
+				uiChan <- uiData{
+					stats: fmt.Sprintf("CPU: %.1f%% | RAM: %.1f%% | Adapter: %s", cpuP, ramP, adapterName),
+					log:   statsRaw,
+				}
+
+				_, err := conn.Write([]byte(statsRaw))
+				if err != nil {
+					uiChan <- uiData{status: "Send Error: Connection Lost"}
+					conn.Close()
+					break
+				}
+				time.Sleep(1 * time.Second)
+			}
 		}
 	}()
 
 	window.ShowAndRun()
 }
 
-func runMonitoringLoop(uiChan chan uiData) {
-	disconnectedState := uiData{
-		status: "Status: 🔍 Searching...",
-		stats:  "CPU: ----% | RAM: ----% | Port: None",
-		log:    "Disconnected",
-	}
-
-	for {
-		port, activePort := findDevice()
-		if port == nil {
-			uiChan <- disconnectedState
-			time.Sleep(2 * time.Second)
-			continue
+func getAdapterInfoByMAC(targetMac string) (string, string) {
+	ifaces, _ := net.Interfaces()
+	for _, iface := range ifaces {
+		if strings.ToLower(iface.HardwareAddr.String()) == strings.ToLower(targetMac) {
+			addrs, _ := iface.Addrs()
+			for _, addr := range addrs {
+				if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+					if ipnet.IP.To4() != nil {
+						return ipnet.IP.String(), iface.Name
+					}
+				}
+			}
 		}
-
-		for {
-			data, statsStr, err := collectStats(activePort)
-			if err != nil {
-				uiChan <- disconnectedState
-				break
-			}
-
-			if _, err := port.Write([]byte(data)); err != nil {
-				break
-			}
-
-			uiChan <- uiData{
-				status: "Status: ✅ Connected",
-				stats:  statsStr,
-				log:    "Sent: " + strings.TrimSpace(data),
-			}
-			time.Sleep(time.Second)
-		}
-		port.Close()
 	}
+	return "", ""
 }
 
-func collectStats(activePort string) (string, string, error) {
+func collectAllStats() (string, float64, float64) {
+	d1, _ := disk.IOCounters()
+	n1, _ := netutil.IOCounters(false)
+	time.Sleep(1 * time.Second)
+
 	cPctAll, _ := cpu.Percent(0, false)
 	m, _ := mem.VirtualMemory()
 	cInfo, _ := cpu.Info()
 	t, _ := host.SensorsTemperatures()
 	uptime, _ := host.Uptime()
+	d2, _ := disk.IOCounters()
+	n2, _ := netutil.IOCounters(false)
 
 	var cpuTemp float64
-	if len(t) > 0 {
-		cpuTemp = t[0].Temperature
-	}
-
-	d1, _ := disk.IOCounters()
-	n1, _ := net.IOCounters(false)
-	time.Sleep(500 * time.Millisecond)
-	d2, _ := disk.IOCounters()
-	n2, _ := net.IOCounters(false)
+	if len(t) > 0 { cpuTemp = t[0].Temperature }
 
 	var readSpd, writeSpd uint64
 	for _, s := range d2 {
@@ -149,31 +174,10 @@ func collectStats(activePort string) (string, string, error) {
 		netDown = (n2[0].BytesRecv - n1[0].BytesRecv) / 1024
 	}
 
-	data := fmt.Sprintf("CP:%.1f|CT:%.1f|CF:%d|RM:%.1f|RG:%.1f|DR:%d|DW:%d|ND:%d|UP:%d\n",
+	raw := fmt.Sprintf("CP:%.1f|CT:%.1f|CF:%d|RM:%.1f|RG:%.1f|DR:%d|DW:%d|ND:%d|UP:%d\n",
 		cPctAll[0], cpuTemp, int(cInfo[0].Mhz), m.UsedPercent,
 		float64(m.Used)/1e9, readSpd/1024, writeSpd/1024, netDown, uptime,
 	)
 
-	statsStr := fmt.Sprintf("CPU: %.1f%% | RAM: %.1f%% | Port: %s", cPctAll[0], m.UsedPercent, activePort)
-
-	return data, statsStr, nil
-}
-
-func findDevice() (*serial.Port, string) {
-	ports := platform.GetSerialPorts() 
-
-	for _, pName := range ports {
-		config := &serial.Config{Name: pName, Baud: 115200, ReadTimeout: time.Second * 1}
-		p, err := serial.OpenPort(config)
-		if err == nil {
-			p.Write([]byte("IDENTIFY\n"))
-			buf := make([]byte, 64)
-			n, _ := p.Read(buf)
-			if n > 0 && strings.Contains(string(buf[:n]), "ESP_MONITOR_READY") {
-				return p, pName
-			}
-			p.Close()
-		}
-	}
-	return nil, ""
+	return raw, cPctAll[0], m.UsedPercent
 }
